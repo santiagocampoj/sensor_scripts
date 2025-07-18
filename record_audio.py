@@ -13,35 +13,10 @@ from utils import *
 from logging_config import setup_logging
 import yaml
 
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
 
 upload_queue = Queue()
 last_successful_upload_time = time.time()
 
-
-
-def send_email_alert(subject, message, logging):
-    email = "scjaacacustica@gmail.com"
-    receiver_email = "scj@aacacustica.com"
-    
-    text = f"From: {email}\nTo: {receiver_email}\nSubject: {subject}\n\n{message}"
-    
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(email, "xusd svux yrww szfb")
-        server.sendmail(email, receiver_email, text)
-        server.quit()
-        
-        logging.info(f"Email alert has been sent to {receiver_email}")
-    
-    except Exception as e:
-        logging.error(f"Failed to send email alert: {e}")
 
 
 
@@ -91,7 +66,6 @@ def upload_worker(storage_s3_bucket_name, location_record, location_place, locat
         except Exception as e:
             error_message = f"Failed to upload file {file_path} to S3: {e}"
             logging.error(error_message)
-            send_email_alert("Audio File Upload Failure", error_message, logging)
 
         upload_queue.task_done()
 
@@ -198,13 +172,11 @@ def record_audio_continuous(device_index, location_record, location_place, locat
             except Exception as segment_error:
                 error_message = f"Error during segment processing: {segment_error}. Continuing to next segment."
                 logging.error(error_message)
-                send_email_alert("Audio Processing Error", error_message, logging)
                 time.sleep(1)
                 continue
 
 
     except KeyboardInterrupt:
-        send_email_alert("Recording Interrupted", "The recording process was interrupted by the user.", logging)
         logging.error("Recording stopped by user.")
 
 
@@ -225,10 +197,29 @@ def check_uploads(logging, check_interval=60, threshold=70):
         if elapsed > threshold:
             error_message = f"No upload in the last {elapsed:.0f} seconds."
             logging.error(error_message)
-            send_email_alert("Upload Failure", error_message, logging)
         else:
             logging.info(f"Upload check passed. Last upload was {elapsed:.0f} seconds ago.")
 
+
+
+def upload_file_to_s3(file_path, bucket_name, logging):
+    """
+    Upload the local file_path to the given S3 bucket.
+    """
+    s3 = boto3.client('s3')
+    # creating the paths 
+    s3_path = file_path.split("/")[3:]
+    # joint it back
+    s3_path = "/".join(s3_path)
+    s3_full_path = os.path.join(s3_path)
+    
+    logging.info(f"Uploading {file_path} to s3://{bucket_name}/{s3_path}")
+    try:
+        s3.upload_file(file_path, bucket_name, s3_path)
+        logging.info("Upload successful!")
+    
+    except Exception as e:
+        logging.error(f"Failed to upload to S3: {e}")
 
 
 
@@ -268,7 +259,6 @@ def main():
             logging.info(f"Using device index: {device_index}")
         except Exception as e:
             logging.error(f"Error getting the device index: {e}")
-            send_email_alert("Getting Device Index", f"Error getting the device index: {e}", logging)
             return
 
 
@@ -284,7 +274,6 @@ def main():
 
         except Exception as e:
             logging.error(f"Error loading config: {e}")
-            send_email_alert("Config Loading Error", f"Error loading config: {e}", logging)
             return
 
         #checkout
@@ -323,7 +312,6 @@ def main():
 
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}")
-        send_email_alert("Unexpected Error", f"An unexpected error occurred: {e}", logging)
 
 
 if __name__ == "__main__":
