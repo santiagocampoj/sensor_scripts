@@ -138,10 +138,10 @@ def record_audio_continuous(device_index, location_record, location_place, locat
 
             if upload_s3:
                 upload_file_to_s3(file_path, storage_s3_bucket_name)
-
             os.system(f"sudo rm -rf {file_path}")
             print(f"Removed {file_path}")
             time.sleep(1)
+            # exit()
 
     except KeyboardInterrupt:
         print("Recording stopped by user.")
