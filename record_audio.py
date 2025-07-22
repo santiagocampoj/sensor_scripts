@@ -3,15 +3,14 @@ import os
 import datetime
 import pyaudio
 import wave
-
+import time  
+import yaml
 import boto3
+
+
 import threading
 from queue import Queue
-import time  
 
-from utils import *
-from logging_config import setup_logging
-import yaml
 
 
 upload_queue = Queue()
@@ -19,19 +18,48 @@ last_successful_upload_time = time.time()
 
 
 
+def load_config(yaml_path: str) -> dict:
+    with open(yaml_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
 
 
-def get_device_index(logging, target_name="Sound Blaster Play! 3"):
+
+def load_config_record(yaml_path: str) -> dict:
+    with open(yaml_path, 'r') as file:
+        config = yaml.safe_load(file)
+
+        location_record = config["location"]["record"]
+        location_place = config['location']['place']
+        location_point = config['location']['point']
+
+
+        audio_format = config['audio']['format']
+        audio_channels = config['audio']['channels']
+        audio_sample_rate = config['audio']['sample_rate']
+        audio_chunk_size = config['audio']['chunk_size']
+
+
+        storage_s3_bucket_name = config['storage']['s3_bucket_name'] 
+        storage_output_wav_folder = config['storage']['output_wav_folder']
+
+
+    return location_record, location_place, location_point, audio_format, audio_channels, audio_sample_rate, audio_chunk_size, storage_s3_bucket_name, storage_output_wav_folder
+
+
+
+
+def get_device_index(target_name="Sound Blaster Play! 3"):
     """Automatically find the input device index by name."""
     p = pyaudio.PyAudio()
     device_index = None
 
     for i in range(p.get_device_count()):
         device_info = p.get_device_info_by_index(i)
-        logging.info(f"Device {i}: {device_info['name']}")
+        print(f"Device {i}: {device_info['name']}")
         if target_name.lower() in device_info['name'].lower() and device_info['maxInputChannels'] > 0:
             device_index = i
-            logging.info(f"Found target device: {device_info['name']} (Index: {device_index})")
+            print(f"Found target device: {device_info['name']} (Index: {device_index})")
             break
 
     p.terminate()
@@ -241,24 +269,23 @@ def arg_parser():
 
 def main():
     try:
-        logging = setup_logging(script_name="record_audio")
         args = arg_parser()
 
-        logging.info("Starting process!!")
-        logging.info("")
+        print("Starting process!!")
+        print("")
 
         upload_s3 = args.upload_S3 if args.upload_S3 else None
         record_seconds = args.time if args.time else 60
 
-        logging.info(f"Upload to bucket S3: {upload_s3}")
-        logging.info(f"Recording {record_seconds} seconds")
+        print(f"Upload to bucket S3: {upload_s3}")
+        print(f"Recording {record_seconds} seconds")
 
         # device index
         try:
-            device_index = get_device_index(logging)
-            logging.info(f"Using device index: {device_index}")
+            device_index = get_device_index()
+            print(f"Using device index: {device_index}")
         except Exception as e:
-            logging.error(f"Error getting the device index: {e}")
+            print(f"Error getting the device index: {e}")
             return
 
 
@@ -273,9 +300,10 @@ def main():
                 audio_format = pyaudio.paInt16
 
         except Exception as e:
-            logging.error(f"Error loading config: {e}")
+            print(f"Error loading config: {e}")
             return
 
+        exit()
         #checkout
         if upload_s3:
             threading.Thread(
@@ -283,12 +311,12 @@ def main():
                 args=(logging,),
                 daemon=True
             ).start()
-        logging.info("Started upload checkout thread.")
+        print("Started upload checkout thread.")
 
 
 
-        logging.info("")
-        logging.info("Entering recording audio workflow!")
+        print("")
+        print("Entering recording audio workflow!")
         record_audio_continuous(
             device_index,
             
@@ -311,7 +339,7 @@ def main():
         )
 
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e}")
 
 
 if __name__ == "__main__":
