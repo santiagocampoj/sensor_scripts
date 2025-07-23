@@ -100,8 +100,21 @@ def record_segment(stream, p, record_seconds, location_record, location_place, l
 
 
 
+# def upload_file_to_s3(file_path, bucket_name):
+#     s3 = boto3.client('s3')
+#     s3_path = "/".join(file_path.split("/")[3:])
+#     print(f"Uploading {file_path} to s3://{bucket_name}/{s3_path}")
+#     try:
+#         s3.upload_file(file_path, bucket_name, s3_path)
+#         print("Upload successful!")
+#     except Exception as e:
+#         print(f"Failed to upload to S3: {e}")
+
+
 def upload_file_to_s3(file_path, bucket_name):
-    s3 = boto3.client('s3')
+    ca_bundle_path = os.path.join(os.path.dirname(__file__), "cacert.pem")
+
+    s3 = boto3.client('s3', verify=ca_bundle_path)
     s3_path = "/".join(file_path.split("/")[3:])
     print(f"Uploading {file_path} to s3://{bucket_name}/{s3_path}")
     try:
@@ -109,6 +122,7 @@ def upload_file_to_s3(file_path, bucket_name):
         print("Upload successful!")
     except Exception as e:
         print(f"Failed to upload to S3: {e}")
+
 
 
 
